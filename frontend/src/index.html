@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Lenny Growth Assistant</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#12151a; --panel2:#171b21; --border:#242933;
+    --text:#e8eaed; --muted:#8a919e; --accent:#5b8cff; --accent2:#7ee6c4;
+    --danger:#ff6b6b; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;height:100vh;overflow:hidden;}
+  #root{height:100vh;}
+  .app{display:flex;height:100vh;}
+  .chatpane{flex:1.3;display:flex;flex-direction:column;border-right:1px solid var(--border);min-width:0;}
+  .artifactpane{flex:1;display:flex;flex-direction:column;background:var(--panel);min-width:0;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);background:var(--panel);}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-0.02em;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent2);box-shadow:0 0 8px var(--accent2);}
+  .badge{font-size:12px;padding:5px 10px;border-radius:20px;border:1px solid var(--border);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .badge.ollama{color:var(--accent2);border-color:rgba(126,230,196,.35);}
+  .badge.anthropic{color:#ffb86b;border-color:rgba(255,184,107,.35);}
+  .messages{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px;}
+  .msg{max-width:80%;padding:13px 16px;border-radius:var(--radius);line-height:1.55;font-size:14.5px;white-space:pre-wrap;}
+  .msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;}
+  .msg.assistant{align-self:flex-start;background:var(--panel2);border:1px solid var(--border);border-bottom-left-radius:4px;}
+  .msg.assistant.insufficient{border-color:rgba(255,107,107,.4);}
+  .msg-meta{font-size:11px;color:var(--muted);margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
+  .src-chip{background:rgba(91,140,255,.12);border:1px solid rgba(91,140,255,.25);color:#9ab4ff;padding:2px 8px;border-radius:10px;font-size:11px;text-decoration:none;}
+  .src-chip:hover{background:rgba(91,140,255,.22);}
+  .warn{color:var(--danger);font-size:12px;margin-top:6px;font-weight:600;}
+  .typing{align-self:flex-start;display:flex;gap:4px;padding:14px 16px;background:var(--panel2);border-radius:var(--radius);border:1px solid var(--border);}
+  .typing span{width:6px;height:6px;background:var(--muted);border-radius:50%;animation:bounce 1.1s infinite ease-in-out;}
+  .typing span:nth-child(2){animation-delay:.15s;} .typing span:nth-child(3){animation-delay:.3s;}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4;}30%{transform:translateY(-5px);opacity:1;}}
+  .inputbar{padding:16px 22px;border-top:1px solid var(--border);background:var(--panel);}
+  .inputrow{display:flex;gap:10px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:6px 6px 6px 16px;align-items:center;}
+  .inputrow:focus-within{border-color:var(--accent);}
+  .inputrow input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:14.5px;padding:10px 0;}
+  .inputrow input::placeholder{color:var(--muted);}
+  .sendbtn{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:10px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:opacity .15s;}
+  .sendbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .sendbtn:hover:not(:disabled){opacity:.85;}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:8px;padding-left:4px;}
+  .art-header{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .art-title{font-weight:700;font-size:14px;}
+  .art-controls{display:flex;gap:8px;}
+  .art-controls select,.art-controls input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:12.5px;outline:none;}
+  .art-controls input{width:170px;}
+  .genbtn{background:var(--accent2);color:#08110d;border:none;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;}
+  .genbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .art-body{flex:1;overflow-y:auto;padding:24px;}
+  .art-empty{color:var(--muted);font-size:13.5px;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 40px;}
+  .art-content{background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius);padding:22px;font-size:14px;line-height:1.7;}
+  .art-content h1,.art-content h2,.art-content h3{margin-top:0;}
+  .art-content h2{font-size:16px;color:var(--accent2);border-bottom:1px solid var(--border);padding-bottom:6px;}
+  .art-content iframe{width:100%;min-height:400px;border:none;border-radius:8px;background:#fff;}
+  ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState, useEffect, useRef} = React;
+const API = "http://localhost:8000";
+
+function App(){
+  const [sessionId, setSessionId] = useState(null);
+  const [provider, setProvider] = useState("...");
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [artifact, setArtifact] = useState(null);
+  const [artType, setArtType] = useState("markdown");
+  const [artInstructions, setArtInstructions] = useState("Summarize this as a one-page cheat sheet");
+  const [artLoading, setArtLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    fetch(API + "/sessions", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"})
+      .then(r => r.json()).then(d => setSessionId(d.session_id))
+      .catch(() => setMessages([{role:"assistant", content:"Could not reach backend at " + API + ". Is the server running?", sources:[]}]));
+    fetch(API + "/config").then(r => r.json()).then(d => setProvider(d.llm_provider)).catch(()=>setProvider("unknown"));
+  }, []);
+
+  useEffect(() => {
+    if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, loading]);
+
+  async function sendMessage(){
+    if(!input.trim() || !sessionId || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    setMessages(m => [...m, {role:"user", content:userMsg}]);
+    setLoading(true);
+    try{
+      const res = await fetch(API + "/chat", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({session_id: sessionId, message: userMsg})
+      });
+      const data = await res.json();
+      if(!res.ok){
+        setMessages(m => [...m, {role:"assistant", content:"Error: " + (data.detail?.message || data.detail?.error || "request failed"), sources:[], error:true}]);
+      } else {
+        setMessages(m => [...m, {role:"assistant", content:data.response, sources:data.sources||[], sufficient:data.sufficient_context, model:data.model_used}]);
+      }
+    } catch(e){
+      setMessages(m => [...m, {role:"assistant", content:"Network error: " + e.message, sources:[], error:true}]);
+    }
+    setLoading(false);
+  }
+
+  async function generateArtifact(){
+    if(!sessionId || artLoading) return;
+    setArtLoading(true);
+    setArtifact(null);
+    try{
+      const res = await fetch(API + "/artifacts", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({session_id: sessionId, artifact_type: artType, instructions: artInstructions})
+      });
+      const data = await res.json();
+      if(!res.ok){
+        setArtifact({error: data.detail?.message || data.detail?.error || "generation failed"});
+      } else {
+        setArtifact({type: data.type, content: data.content});
+      }
+    } catch(e){
+      setArtifact({error: "Network error: " + e.message});
+    }
+    setArtLoading(false);
+  }
+
+  return (
+    <div className="app">
+      <div className="chatpane">
+        <div className="topbar">
+          <div className="brand"><span className="dot"></span>Lenny Growth Assistant</div>
+          <span className={"badge " + provider}>{provider}</span>
+        </div>
+        <div className="messages" ref={scrollRef}>
+          {messages.length === 0 && !loading && (
+            <div className="art-empty">Ask anything about product & growth — grounded in Lenny's Podcast transcripts.<br/>Try: "ship30: what makes a great PM"</div>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={"msg " + m.role + (m.sufficient === false ? " insufficient" : "")}>
+              {m.content}
+              {m.sufficient === false && <div className="warn">⚠ Limited grounded context for this answer</div>}
+              {m.sources && m.sources.length > 0 && (
+                <div className="msg-meta">
+                  {[...new Set(m.sources.map(s => s.episode_title))].map((title, idx) => {
+                    const src = m.sources.find(s => s.episode_title === title);
+                    return <a key={idx} className="src-chip" href={src.source_url} target="_blank" rel="noreferrer">{title}</a>;
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+          {loading && <div className="typing"><span></span><span></span><span></span></div>}
+        </div>
+        <div className="inputbar">
+          <div className="inputrow">
+            <input
+              placeholder="Ask about product management, growth, or type 'ship30: <topic>' for an essay..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && sendMessage()}
+              disabled={!sessionId}
+            />
+            <button className="sendbtn" onClick={sendMessage} disabled={!input.trim() || loading || !sessionId}>Send</button>
+          </div>
+          <div className="hint">{sessionId ? "Session ready · " + sessionId.slice(0,8) : "Connecting..."}</div>
+        </div>
+      </div>
+
+      <div className="artifactpane">
+        <div className="art-header">
+          <div className="art-title">Artifact Viewer</div>
+          <div className="art-controls">
+            <select value={artType} onChange={e => setArtType(e.target.value)}>
+              <option value="markdown">Markdown</option>
+              <option value="html">HTML</option>
+            </select>
+            <input value={artInstructions} onChange={e => setArtInstructions(e.target.value)} placeholder="Instructions..." />
+            <button className="genbtn" onClick={generateArtifact} disabled={artLoading || !sessionId}>{artLoading ? "..." : "Generate"}</button>
+          </div>
+        </div>
+        <div className="art-body">
+          {!artifact && !artLoading && <div className="art-empty">Chat first, then generate a markdown or HTML artifact from the conversation.</div>}
+          {artLoading && <div className="art-empty">Generating artifact...</div>}
+          {artifact && artifact.error && <div className="warn">Error: {artifact.error}</div>}
+          {artifact && !artifact.error && artifact.type === "markdown" && (
+            <div className="art-content" dangerouslySetInnerHTML={{__html: marked.parse(artifact.content)}} />
+          )}
+          {artifact && !artifact.error && artifact.type === "html" && (
+            <div className="art-content">
+              <iframe sandbox="" srcDoc={artifact.content}></iframe>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
